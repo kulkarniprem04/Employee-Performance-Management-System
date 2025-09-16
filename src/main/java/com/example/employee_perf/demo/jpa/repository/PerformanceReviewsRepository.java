@@ -1,0 +1,9 @@
+package com.example.employee_perf.demo.jpa.repository;
+
+import com.example.employee_perf.demo.jpa.entity.PerformanceReview;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface PerformanceReviewsRepository extends JpaRepository<PerformanceReview, Long> {
+}
