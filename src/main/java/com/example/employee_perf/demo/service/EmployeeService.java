@@ -7,12 +7,9 @@ import com.example.employee_perf.demo.dto.PerformanceReviewDto;
 import com.example.employee_perf.demo.dto.ProjectDto;
 import com.example.employee_perf.demo.jpa.Specification.EmployeeProjectSpecification;
 import com.example.employee_perf.demo.jpa.Specification.EmployeeSpecifications;
-import com.example.employee_perf.demo.jpa.Specification.PerformanceReviewSpecification;
-import com.example.employee_perf.demo.jpa.entity.Department;
 import com.example.employee_perf.demo.jpa.entity.Employee;
 import com.example.employee_perf.demo.jpa.entity.EmployeeProject;
 import com.example.employee_perf.demo.jpa.entity.PerformanceReview;
-import com.example.employee_perf.demo.jpa.entity.Project;
 import com.example.employee_perf.demo.jpa.repository.DepartmentRepository;
 import com.example.employee_perf.demo.jpa.repository.EmployeeProjectRepository;
 import com.example.employee_perf.demo.jpa.repository.EmployeeRepository;
@@ -27,10 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -77,7 +71,7 @@ public class EmployeeService {
         Sort sort = Sort.by(Sort.Direction.ASC, "name");
        List<Employee> employees =  employeeRepository.findAll(spec, sort);
 
-       return getEmployeehortDTo(employees);
+       return getEmployeeShortDTo(employees);
     }
 
     public ResponseEntity<EmployeeFullDto> getEmployeeWithId(Long employeeId) {
@@ -124,7 +118,7 @@ public class EmployeeService {
         return performanceReviewDtos;
     }
 
-    private List<EmployeeShortDto> getEmployeehortDTo(List<Employee> employees) {
+    private List<EmployeeShortDto> getEmployeeShortDTo(List<Employee> employees) {
         List<EmployeeShortDto > employeeShortDtos = new ArrayList<>();
         employees.forEach((employee -> {
             EmployeeShortDto employeeShortDto = new EmployeeShortDto();
