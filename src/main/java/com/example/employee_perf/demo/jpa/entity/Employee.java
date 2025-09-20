@@ -6,11 +6,14 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Date;
+import java.util.List;
 
 @Entity(name = "EMPLOYEE")
 @Data
@@ -40,5 +43,8 @@ public class Employee {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "MANAGER_ID")
     private Employee manager;
+
+    @OneToMany(mappedBy ="employee",fetch = FetchType.LAZY)
+    private List<PerformanceReview> performanceReviews;
 
 }

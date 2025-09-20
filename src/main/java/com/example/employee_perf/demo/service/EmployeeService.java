@@ -1,5 +1,13 @@
 package com.example.employee_perf.demo.service;
 
+import com.example.employee_perf.demo.dto.EmployeeFilterDto;
+import com.example.employee_perf.demo.dto.EmployeeFullDto;
+import com.example.employee_perf.demo.dto.EmployeeShortDto;
+import com.example.employee_perf.demo.dto.PerformanceReviewDto;
+import com.example.employee_perf.demo.dto.ProjectDto;
+import com.example.employee_perf.demo.jpa.Specification.EmployeeProjectSpecification;
+import com.example.employee_perf.demo.jpa.Specification.EmployeeSpecifications;
+import com.example.employee_perf.demo.jpa.Specification.PerformanceReviewSpecification;
 import com.example.employee_perf.demo.jpa.entity.Department;
 import com.example.employee_perf.demo.jpa.entity.Employee;
 import com.example.employee_perf.demo.jpa.entity.EmployeeProject;
@@ -11,12 +19,24 @@ import com.example.employee_perf.demo.jpa.repository.EmployeeRepository;
 import com.example.employee_perf.demo.jpa.repository.PerformanceReviewsRepository;
 import com.example.employee_perf.demo.jpa.repository.ProjectRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -36,46 +56,86 @@ public class EmployeeService {
         this.performanceReviewsRepository = performanceReviewsRepository;
     }
 
-    public List<Employee> save() {
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
-        //Departments
-        List<Department> departments = new ArrayList<>();
-        departments.add(new Department(1L, "Engineering", 5000000L));
-        departments.add(new Department(2L, "DevOps", 2500000L));
-        departmentRepository.saveAll(departments);
+    public List<EmployeeShortDto> getEmployees(EmployeeFilterDto employeeFilterDto) {
+        Specification<Employee> spec = Specification.unrestricted();
 
-        //Employees
-        List<Employee> employees = new ArrayList<>();
-        try {
-            employees.add(new Employee(3L, "Prem", "kulkarniprem04@gmail.com",  simpleDateFormat.parse("2022-07-18"),800000L,departments.getFirst(), null));
-            employees.add(new Employee(1L, "Preetam", "kulkarnipreetam04@gmail.com",  simpleDateFormat.parse("2022-07-18"),800000L,departments.getFirst(), employees.getFirst()));
-            employees.add(new Employee(2L, "Prateek", "kulkarniprateek04@gmail.com",  simpleDateFormat.parse("2022-07-18"),800000L,departments.getFirst(), employees.getFirst()));
-            employeeRepository.saveAll(employees);
-
-            //Project
-            List<Project> projects = new ArrayList<>();
-            projects.add(new Project(1L, "Prisma", simpleDateFormat.parse("2020-06-01"), simpleDateFormat.parse("2026-06-01"), departments.getFirst()));
-            projects.add(new Project(2L, "Spectra", simpleDateFormat.parse("2020-06-01"), simpleDateFormat.parse("2026-06-01"), departments.getFirst()));
-            projectRepository.saveAll(projects);
-
-            //Performance Review
-            List<PerformanceReview> performanceReviews = new ArrayList<>();
-            performanceReviews.add(new PerformanceReview(1L, employees.getFirst(), simpleDateFormat.parse("2025-06-01"), 80, "No COMMENTS"));
-            performanceReviews.add(new PerformanceReview(2L, employees.get(1), simpleDateFormat.parse("2025-06-01"), 80, "No COMMENTS"));
-            performanceReviewsRepository.saveAll(performanceReviews);
-
-            //Employee_Project
-            List<EmployeeProject> employeeProjects = new ArrayList<>();
-            employeeProjects.add(new EmployeeProject(1L, employees.getFirst(), projects.getFirst()));
-            employeeProjects.add(new EmployeeProject(2L, employees.get(1), projects.get(1)));
-            employeeProjects.add(new EmployeeProject(3L, employees.getFirst(), projects.get(1)));
-            employeeProjects.add(new EmployeeProject(4L, employees.get(1), projects.getFirst()));
-            employeeProjectRepository.saveAll(employeeProjects);
-
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
+        if(CollectionUtils.isNotEmpty(employeeFilterDto.getDepartmentNames())) {
+            spec = spec.and(EmployeeSpecifications.belongsToDepartments(employeeFilterDto.getDepartmentNames()));
         }
 
-        return employees;
+        if(Objects.nonNull(employeeFilterDto.getReviewDate())) {
+            spec = spec.and(EmployeeSpecifications.getEmployeeFromReviewDate(employeeFilterDto.getReviewDate()));
+        }
+
+        if(CollectionUtils.isNotEmpty(employeeFilterDto.getProjectNames())) {
+            Specification<EmployeeProject> employeeProjectSpecification = EmployeeProjectSpecification.getProjectsFromNames(employeeFilterDto.getProjectNames());
+            List<EmployeeProject> employeeProjects = employeeProjectRepository.findAll(employeeProjectSpecification);
+            Set<Long> employeeIds = employeeProjects.stream().map(employeeProject -> employeeProject.getEmployee().getId()).collect(Collectors.toSet());
+            spec = spec.and(EmployeeSpecifications.getEmployeeFromIds(employeeIds.stream().toList()));
+        }
+
+        Sort sort = Sort.by(Sort.Direction.ASC, "name");
+       List<Employee> employees =  employeeRepository.findAll(spec, sort);
+
+       return getEmployeehortDTo(employees);
+    }
+
+    public ResponseEntity<EmployeeFullDto> getEmployeeWithId(Long employeeId) {
+        Optional<Employee> emp = employeeRepository.findById(employeeId);
+        EmployeeFullDto employeeFullDto = new EmployeeFullDto();
+        if(emp.isPresent()) {
+            Employee employee = emp.get();
+            BeanUtils.copyProperties(employee, employeeFullDto);
+            employeeFullDto.setDepartmentName(employee.getDepartment().getName());
+            List<ProjectDto> projectDtos = getProjectstFromId(employee);
+            employeeFullDto.setProjects(projectDtos);
+           List<PerformanceReviewDto> performanceReviewDtos = getPerformanceReviewsFromEmployee(employee);
+           employeeFullDto.setPerformanceReviews(performanceReviewDtos);
+           return ResponseEntity.status(HttpStatus.OK).body(employeeFullDto);
+        }
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+    }
+
+    private List<ProjectDto> getProjectstFromId(Employee employee) {
+        List<EmployeeProject> employeeProjects = employeeProjectRepository.findEmployeeProjectByEmployee(employee);
+        List<ProjectDto> projectDtos = new ArrayList<>();
+        if(CollectionUtils.isNotEmpty(employeeProjects)) {
+            employeeProjects.forEach(employeeProject -> {
+                ProjectDto projectDto = new ProjectDto();
+                BeanUtils.copyProperties(employeeProject.getProject(), projectDto);
+                projectDto.setDepartmentName(employeeProject.getProject().getDepartment().getName());
+                projectDtos.add(projectDto);
+            });
+        }
+        return projectDtos;
+    }
+
+    private List<PerformanceReviewDto> getPerformanceReviewsFromEmployee(Employee employee) {
+        List<PerformanceReviewDto> performanceReviewDtos = new ArrayList<>();
+        List<PerformanceReview> performanceReviews = employee.getPerformanceReviews();
+        performanceReviews.sort(Comparator.comparing(PerformanceReview::getReviewDate).reversed());
+        if(CollectionUtils.isNotEmpty(performanceReviews)) {
+            performanceReviews.subList(0,3).forEach(performanceReview -> {
+                PerformanceReviewDto performanceReviewDto = new PerformanceReviewDto();
+                BeanUtils.copyProperties(performanceReview, performanceReviewDto);
+                performanceReviewDtos.add(performanceReviewDto);
+            });
+        }
+        return performanceReviewDtos;
+    }
+
+    private List<EmployeeShortDto> getEmployeehortDTo(List<Employee> employees) {
+        List<EmployeeShortDto > employeeShortDtos = new ArrayList<>();
+        employees.forEach((employee -> {
+            EmployeeShortDto employeeShortDto = new EmployeeShortDto();
+            BeanUtils.copyProperties(employee, employeeShortDto);
+            employeeShortDto.setDepartmentName(employee.getDepartment().getName());
+            if(Objects.nonNull(employee.getManager())) {
+                employeeShortDto.setManagerName(employee.getManager().getName());
+            }
+            employeeShortDtos.add(employeeShortDto);
+        }));
+
+        return employeeShortDtos;
     }
 }
